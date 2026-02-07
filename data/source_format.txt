@@ -1,0 +1,65 @@
+Order - 
+
+order_id (UUID, PK): Unique identifier.
+
+customer_id (UUID, FK): Link to the customer profile.
+
+status (Enum): PENDING, PAID, SHIPPED, DELIVERED, CANCELLED, REFUNDED.
+
+currency (String): ISO code (e.g., USD, EUR).
+
+total_base_amount (Decimal): Price before taxes/shipping.
+
+total_tax_amount (Decimal): Calculated tax.
+
+total_shipping_amount (Decimal): Shipping cost.
+
+total_discount_amount (Decimal): Total savings applied.
+
+final_total_amount (Decimal): The actual amount charged.
+
+payment_method_id (String): Reference to payment gateway token.
+
+created_at / updated_at (Timestamp): Standard audit trail.
+
+
+order_events - 
+
+event_id (UUID, PK)
+
+order_id (UUID, FK)
+
+event_type (String): e.g., PAYMENT_SUCCESS, OUT_FOR_DELIVERY.
+
+payload (JSONB): Raw metadata from the service that triggered the event.
+
+occurred_at (Timestamp)
+
+order_items - 
+
+order_item_id (UUID, PK)
+
+order_id (UUID, FK)
+
+product_id (UUID, FK)
+
+sku (String): Stock Keeping Unit at the time of purchase.
+
+quantity (Integer)
+
+unit_price (Decimal): Captured price (to protect against future price changes).
+
+discount_amount (Decimal): Specific discount applied to this item.
+
+tax_rate (Decimal): Percentage applied.
+
+
+source - 
+
+order_id
+customer
+timestamp
+event
+payload
+
+
