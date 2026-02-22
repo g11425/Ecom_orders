@@ -9,6 +9,7 @@ from pyflink.datastream.state import ValueStateDescriptor, MapStateDescriptor, S
 from pyflink.datastream import OutputTag
 from pyflink.common.time import Time
 from pyflink.common.typeinfo import Types
+from pyflink.java_gateway import get_gateway
 
 
 import sys
@@ -88,29 +89,14 @@ class validate_event(KeyedProcessFunction):
             yield json.dumps(event)
 
 
-class S3SinkBucketAssigner(BucketAssigner):
-
-    def get_bucket_id(self, element, context):
-        event = json.loads(element)
-        event_time = event.get('event_time')
-
-        # get year, month, day, hour from event_time
-        year_month = event_time.strftime("%Y-%m")
-        day = event_time.strftime("%d")
-        hour = event_time.strftime("%H")
-
-        # Final path structure
-        return f"{year_month}/{day}/{hour}"
-
-
 
 
 
 if __name__ == '__main__':
     env = StreamExecutionEnvironment.get_execution_environment()
-    env.add_jars("file://" + os.path.join(cfg.PROJECT_ROOT, "jar",\
-                    "flink-connector-kafka-4.0.1-2.0.jar"), "file://" \
-                    + os.path.join(cfg.PROJECT_ROOT, "jar", "kafka-clients-4.1.1.jar"))
+    env.add_jars("file://" + os.path.join(cfg.PROJECT_ROOT, "jar", "flink-connector-kafka-4.0.1-2.0.jar"),\
+                  "file://" + os.path.join(cfg.PROJECT_ROOT, "jar", "kafka-clients-4.1.1.jar"), \
+                    "file://" + os.path.join(cfg.PROJECT_ROOT, "jar", "flink-s3-fs-hadoop-2.2.0.jar"))
     env.set_parallelism(1)
     env.enable_checkpointing(20000)
 
@@ -122,8 +108,13 @@ if __name__ == '__main__':
 
     ds = env.from_source(kafka_source, WatermarkStrategy.no_watermarks(), "Kafka Source")
 
+    jvm = get_gateway().jvm
+    J_assigner = jvm.org.apache.flink.streaming.api.functions.sink.filesystem.bucketassigners.DateTimeBucketAssigner("yyyy-MM/dd/HH")
+    S3_bucket_assigner = BucketAssigner(J_assigner)
+
     file_sink = FileSink\
-                    .for_row_format(cfg.OUTPUT_DIR, Encoder.simple_string_encoder("UTF-8"))\
+                    .for_row_format(cfg.S3_OUTPUT_DIR, Encoder.simple_string_encoder("UTF-8"))\
+                    .with_bucket_assigner(S3_bucket_assigner)\
                     .with_rolling_policy(RollingPolicy.default_rolling_policy(
                         rollover_interval = 1 * 60 * 1000,  # roll every 1 minutes
                         part_size = 1 * 1024 * 1024,  # roll after file size exceeds 1 MB
@@ -133,7 +124,8 @@ if __name__ == '__main__':
                     .build()
 
     invalid_events_sink = FileSink\
-                    .for_row_format(cfg.OUTPUT_DIR_INVALID_EVENTS, Encoder.simple_string_encoder("UTF-8"))\
+                    .for_row_format(cfg.S3_OUTPUT_DIR_INVALID_EVENTS, Encoder.simple_string_encoder("UTF-8"))\
+                    .with_bucket_assigner(S3_bucket_assigner)\
                     .with_rolling_policy(RollingPolicy.default_rolling_policy(
                         rollover_interval = 1 * 60 * 1000,  # roll every 1 minutes
                         part_size = 1 * 1024 * 1024,  # roll after file size exceeds 1 MB
