@@ -1,8 +1,16 @@
 
 
+flink -- 
+
+/home/ec2-user/stream/lib/python3.10/site-packages/pyflink/bin/start-cluster.sh
+
 kafka --
 
+source /home/ec2-user/stream/bin/activate
+
 cd ~/kafka
+
+export PATH=/home/ec2-user/stream/lib/python3.10/site-packages/pyflink/bin:$PATH
 
 $ KAFKA_CLUSTER_ID="$(bin/kafka-storage.sh random-uuid)"
 

@@ -1,6 +1,7 @@
 import random
 from enum import Enum
 from datetime import datetime
+import uuid
 
 class event_type_enum(Enum):
     ORDER_PENDING = 1
@@ -27,8 +28,9 @@ class event:
 
     cancelled_or_returned_prob = 0.1
     is_invalid_event = False
-
+    
     def __init__(self, order_id, event_type, timestamp, payload, is_invalid_event=False):
+        self.event_id = uuid.uuid4()
         self.order_id = order_id
         self.event_type = event_type
         self.timestamp = timestamp
@@ -88,8 +90,15 @@ class event:
         cancelled_or_returned_prob = 0.1
         invalid_event_prob = 0.05
         event_pool_size = 50
+        duplicate_event_prob = 0.05
+        no_of_events = 1000
 
-        def __init__(self, event_per_sec=None, cancelled_or_returned_prob=None, invalid_event_prob=None, event_pool_size=None):
+        def __init__(self, event_per_sec=None, 
+                     cancelled_or_returned_prob=None, 
+                     invalid_event_prob=None, 
+                     event_pool_size=None, 
+                     duplicate_event_prob=None,
+                     no_of_events=None):
             if event_per_sec is not None:
                 self.event_per_sec = event_per_sec
             if cancelled_or_returned_prob is not None:  
@@ -98,6 +107,10 @@ class event:
                 self.invalid_event_prob = invalid_event_prob
             if event_pool_size is not None:
                 self.event_pool_size = event_pool_size
+            if duplicate_event_prob is not None:
+                self.duplicate_event_prob = duplicate_event_prob
+            if no_of_events is not None:
+                self.no_of_events = no_of_events
 
 
 

@@ -7,10 +7,13 @@ import time
 import json
 from datetime import datetime
 from events import event, event_type_enum
+import config as cfg
+import uuid
 
 
 
 class EventSimulator:
+
 
     def __init__(self, config=None):
         if config is None:
@@ -24,6 +27,8 @@ class EventSimulator:
             e = self.init_event(is_invalid_event=is_invalid_event)
             self.event_list.append(e)
         self.kafka_producer = KafkaProducer(bootstrap_servers='localhost:9092', value_serializer=lambda v: json.dumps(v, default=self.enum_serializer).encode('utf-8'))
+        self.duplicate_count = 0
+        self.event_count = 0
 
     
     def init_event(self, is_invalid_event=False):
@@ -38,6 +43,8 @@ class EventSimulator:
             return obj.name
         if isinstance(obj, datetime):
             return obj.isoformat()
+        if isinstance(obj, uuid.UUID):
+            return str(obj)
         raise TypeError("Type not serializable" + str(type(obj)))
     
     def generate_payload(self):
@@ -50,6 +57,9 @@ class EventSimulator:
     
     def next_event(self):
 
+        if self.event_count >= self.config.no_of_events:
+            return None
+
         time.sleep(1.0 / self.config.event_per_sec)
         
 
@@ -60,9 +70,17 @@ class EventSimulator:
         if next_event is None:
             is_invalid_event = random.random() < self.config.invalid_event_prob
             next_event = self.init_event(is_invalid_event=is_invalid_event)
-        self.event_list.append(next_event)
-        self.kafka_producer.send('order_events', value=next_event.__dict__)
 
+        self.event_list.append(next_event)
+            
+        self.kafka_producer.send('order_events', value=next_event.__dict__)
+        self.event_count += 1
+        if random.random() < self.config.duplicate_event_prob:
+            self.kafka_producer.send('order_events', value=next_event.__dict__)
+            self.duplicate_count += 1
+            dup_dict = cfg.console_messages.setdefault("producer", {})
+            dup_dict["duplicates produced"] = self.duplicate_count
+            cfg.clean_print(cfg.console_messages)
     
 
 
