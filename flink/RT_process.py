@@ -40,7 +40,9 @@ def clean_print(ds):
 
 class validate_event(KeyedProcessFunction):
 
-    side_output_tag = OutputTag("invalid_events", Types.STRING())
+    invalid_side_output_tag = OutputTag("invalid_events", Types.STRING())
+    dup_side_output_tag = OutputTag("duplicate_events", Types.STRING())
+
 
     def open(self, runtime_context):
         descriptor = ValueStateDescriptor("event_state", Types.STRING())
@@ -63,12 +65,7 @@ class validate_event(KeyedProcessFunction):
         if self.event_map_state is not None:
 
             if self.event_map_state.contains(event['event_id']):
-                event['duplicate'] = True
-                
-            else:
-                event['duplicate'] = False
-        else:
-            event['duplicate'] = False
+                yield self.dup_side_output_tag, json.dumps(event)
 
         self.event_map_state.put(event['event_id'], event['event_type'])
 
@@ -77,14 +74,14 @@ class validate_event(KeyedProcessFunction):
             prev_state = event_type_enum.get_enum(prev_state_name)
 
             if new_state.value < prev_state.value:
-                event['valid'] = "invalid"
-                yield json.dumps(event) 
+#                event['valid'] = "invalid"
+                yield self.invalid_side_output_tag, json.dumps(event)
             else:
-                event['valid'] = "valid"
+#                event['valid'] = "valid"
                 self.event_state.update(event['event_type'])                
                 yield json.dumps(event) 
         else:
-            event['valid'] = "valid"
+#            event['valid'] = "valid"
             self.event_state.update(event['event_type'])                
             yield json.dumps(event)
 
@@ -113,7 +110,7 @@ if __name__ == '__main__':
     S3_bucket_assigner = BucketAssigner(J_assigner)
 
     file_sink = FileSink\
-                    .for_row_format(cfg.S3_OUTPUT_DIR, Encoder.simple_string_encoder("UTF-8"))\
+                    .for_row_format(cfg.S3_RAW_OUTPUT_DIR, Encoder.simple_string_encoder("UTF-8"))\
                     .with_bucket_assigner(S3_bucket_assigner)\
                     .with_rolling_policy(RollingPolicy.default_rolling_policy(
                         rollover_interval = 1 * 60 * 1000,  # roll every 1 minutes
@@ -125,6 +122,17 @@ if __name__ == '__main__':
 
     invalid_events_sink = FileSink\
                     .for_row_format(cfg.S3_OUTPUT_DIR_INVALID_EVENTS, Encoder.simple_string_encoder("UTF-8"))\
+                    .with_bucket_assigner(S3_bucket_assigner)\
+                    .with_rolling_policy(RollingPolicy.default_rolling_policy(
+                        rollover_interval = 1 * 60 * 1000,  # roll every 1 minutes
+                        part_size = 1 * 1024 * 1024,  # roll after file size exceeds 1 MB
+                        inactivity_interval = 1 * 60 * 1000      # roll if no new data arrives for 1 minutes
+                    ))\
+                    .with_output_file_config(OutputFileConfig.builder().with_part_suffix(".csv").build())\
+                    .build()
+
+    valid_events_sink = FileSink\
+                    .for_row_format(cfg.S3_OUTPUT_DIR_VALID_EVENTS, Encoder.simple_string_encoder("UTF-8"))\
                     .with_bucket_assigner(S3_bucket_assigner)\
                     .with_rolling_policy(RollingPolicy.default_rolling_policy(
                         rollover_interval = 1 * 60 * 1000,  # roll every 1 minutes
@@ -147,17 +155,19 @@ if __name__ == '__main__':
     
     processed_ds = ds.key_by(lambda x: json.loads(x)['order_id'])\
                     .process(validate_event(), output_type=Types.STRING())
-
-    dup_ds = processed_ds.filter(lambda x: json.loads(x)['duplicate'])
-
-    valid_ds = processed_ds.filter(lambda x: json.loads(x)['valid'] == "valid" and not json.loads(x)['duplicate'])
     
-    processed_ds.filter(lambda x: json.loads(x)['valid'] == "invalid")\
-        .sink_to(invalid_events_sink)
+    invalid_ds = processed_ds.get_side_output(validate_event.invalid_side_output_tag)
 
+    dup_ds = processed_ds.get_side_output(validate_event.dup_side_output_tag)
 
-
+    #valid_ds = processed_ds.filter(lambda x: json.loads(x)['valid'] == "valid" and not json.loads(x)['duplicate'])
     
+    # processed_ds.filter(lambda x: json.loads(x)['valid'] == "invalid")\
+    #     .sink_to(invalid_events_sink)
+
+    invalid_ds.sink_to(invalid_events_sink)
+
+    processed_ds.sink_to(valid_events_sink)
 
     def update_summary(result):
         summary = cfg.console_messages.setdefault("summary", {})

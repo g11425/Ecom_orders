@@ -1,17 +1,51 @@
 import os
+import posixpath
 import sys
 
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
 OUTPUT_DIR_INVALID_EVENTS = os.path.join(PROJECT_ROOT, "output_invalid_events")
+# S3_BUCKET_NAME = "s3-giam-bucket-002"
+# S3_RAW_OUTPUT_PREFIX = "Ecom_orders/flink-output/raw/unloaded/"
+# S3_VALID_EVENTS_OUTPUT_PREFIX = "Ecom_orders/flink-output/valid-events/unloaded/"
+# S3_INVALID_EVENTS_OUTPUT_PREFIX = "Ecom_orders/flink-output/invalid-events/unloaded/"
+# S3_VALID_EVENTS_OUTPUT_FINAL_PREFIX = "Ecom_orders/flink-output/valid-events/loaded/"
+# S3_INVALID_EVENTS_OUTPUT_FINAL_PREFIX = "Ecom_orders/flink-output/invalid-events/loaded/"
+# S3_RAW_OUTPUT_DIR = f"s3://{S3_BUCKET_NAME}/{S3_RAW_OUTPUT_PREFIX}"
+# S3_OUTPUT_DIR_VALID_EVENTS = f"s3://{S3_BUCKET_NAME}/{S3_VALID_EVENTS_OUTPUT_PREFIX}"
+# S3_OUTPUT_DIR_INVALID_EVENTS = f"s3://{S3_BUCKET_NAME}/{S3_INVALID_EVENTS_OUTPUT_PREFIX}"
+# S3_OUTPUT_DIR_VALID_EVENTS_FINAL = f"s3://{S3_BUCKET_NAME}/{S3_VALID_EVENTS_OUTPUT_FINAL_PREFIX}"
+# S3_OUTPUT_DIR_INVALID_EVENTS_FINAL = f"s3://{S3_BUCKET_NAME}/{S3_INVALID_EVENTS_OUTPUT_FINAL_PREFIX}"
+
+
 S3_BUCKET_NAME = "s3-giam-bucket-002"
-S3_OUTPUT_DIR = f"s3://{S3_BUCKET_NAME}/Ecom_orders/flink-output/unloaded/"
-S3_OUTPUT_DIR_INVALID_EVENTS = f"s3://{S3_BUCKET_NAME}/Ecom_orders/flink-output-invalid-events/unloaded/"
-S3_OUTPUT_DIR_FINAL = f"s3://{S3_BUCKET_NAME}/Ecom_orders/flink-output/loaded/"
-S3_OUTPUT_DIR_INVALID_EVENTS_FINAL = f"s3://{S3_BUCKET_NAME}/Ecom_orders/flink-output-invalid-events/loaded/"
 
+S3_RAW_OUTPUT_PREFIX = posixpath.join(
+    "Ecom_orders", "flink-output", "raw", "unloaded"
+)
 
+S3_VALID_EVENTS_OUTPUT_PREFIX = posixpath.join(
+    "Ecom_orders", "flink-output", "valid-events", "unloaded"
+)
+
+S3_INVALID_EVENTS_OUTPUT_PREFIX = posixpath.join(
+    "Ecom_orders", "flink-output", "invalid-events", "unloaded"
+)
+
+S3_VALID_EVENTS_OUTPUT_FINAL_PREFIX = posixpath.join(
+    "Ecom_orders", "flink-output", "valid-events", "loaded"
+)
+
+S3_INVALID_EVENTS_OUTPUT_FINAL_PREFIX = posixpath.join(
+    "Ecom_orders", "flink-output", "invalid-events", "loaded"
+)
+
+S3_RAW_OUTPUT_DIR = f"s3://{S3_BUCKET_NAME}/{S3_RAW_OUTPUT_PREFIX}"
+S3_OUTPUT_DIR_VALID_EVENTS = f"s3://{S3_BUCKET_NAME}/{S3_VALID_EVENTS_OUTPUT_PREFIX}"
+S3_OUTPUT_DIR_INVALID_EVENTS = f"s3://{S3_BUCKET_NAME}/{S3_INVALID_EVENTS_OUTPUT_PREFIX}"
+S3_OUTPUT_DIR_VALID_EVENTS_FINAL = f"s3://{S3_BUCKET_NAME}/{S3_VALID_EVENTS_OUTPUT_FINAL_PREFIX}"
+S3_OUTPUT_DIR_INVALID_EVENTS_FINAL = f"s3://{S3_BUCKET_NAME}/{S3_INVALID_EVENTS_OUTPUT_FINAL_PREFIX}"
 
 if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
