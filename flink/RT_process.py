@@ -1,10 +1,12 @@
+
+
 from pyflink.datastream import StreamExecutionEnvironment
-from pyflink.common import WatermarkStrategy
+from pyflink.common import WatermarkStrategy, Row
 from pyflink.common.serialization import SimpleStringSchema
 from pyflink.datastream.window import TumblingProcessingTimeWindows
 from pyflink.datastream.connectors.kafka import KafkaSource
 from pyflink.datastream.connectors.file_system import FileSink, RollingPolicy, Encoder, OutputFileConfig, BucketAssigner
-from pyflink.datastream.functions import KeyedProcessFunction
+from pyflink.datastream.functions import KeyedProcessFunction, MapFunction
 from pyflink.datastream.state import ValueStateDescriptor, MapStateDescriptor, StateTtlConfig
 from pyflink.datastream import OutputTag
 from pyflink.common.time import Time
@@ -28,6 +30,29 @@ import config as cfg
 
 
 
+named_row = Types.ROW_NAMED(
+    [
+        "event_id",
+        "order_id",
+        "event_type",
+        "timestamp",
+        "customer_id",
+        "product_id",
+        "quantity",
+        "price",
+    ],
+    [
+        Types.STRING(),
+        Types.STRING(),
+        Types.STRING(),
+        Types.STRING(),
+        Types.STRING(),
+        Types.STRING(),
+        Types.INT(),
+        Types.FLOAT(),
+    ],
+)
+
 
 def clean_print(ds):
 
@@ -40,8 +65,8 @@ def clean_print(ds):
 
 class validate_event(KeyedProcessFunction):
 
-    invalid_side_output_tag = OutputTag("invalid_events", Types.STRING())
-    dup_side_output_tag = OutputTag("duplicate_events", Types.STRING())
+    invalid_side_output_tag = OutputTag("invalid_events", named_row)
+    dup_side_output_tag = OutputTag("duplicate_events", named_row)
 
 
     def open(self, runtime_context):
@@ -65,7 +90,7 @@ class validate_event(KeyedProcessFunction):
         if self.event_map_state is not None:
 
             if self.event_map_state.contains(event['event_id']):
-                yield self.dup_side_output_tag, json.dumps(event)
+                yield self.dup_side_output_tag, self.parse_event(value)
 
         self.event_map_state.put(event['event_id'], event['event_type'])
 
@@ -75,15 +100,29 @@ class validate_event(KeyedProcessFunction):
 
             if new_state.value < prev_state.value:
 #                event['valid'] = "invalid"
-                yield self.invalid_side_output_tag, json.dumps(event)
+                yield self.invalid_side_output_tag, self.parse_event(value)
             else:
 #                event['valid'] = "valid"
                 self.event_state.update(event['event_type'])                
-                yield json.dumps(event) 
+                yield self.parse_event(value)
         else:
 #            event['valid'] = "valid"
             self.event_state.update(event['event_type'])                
-            yield json.dumps(event)
+            yield self.parse_event(value)
+
+    def parse_event(self, value):
+        data = json.loads(value)
+
+        return Row(
+            event_id=data["event_id"],
+            order_id=data["order_id"],
+            event_type=data["event_type"],
+            timestamp=data["timestamp"],
+            customer_id=data["payload"]["customer_id"],
+            product_id=data["payload"]["product_id"],
+            quantity=int(data["payload"]["quantity"]),
+            price=float(data["payload"]["price"]),
+        )
 
 
 
@@ -154,7 +193,7 @@ if __name__ == '__main__':
 
     
     processed_ds = ds.key_by(lambda x: json.loads(x)['order_id'])\
-                    .process(validate_event(), output_type=Types.STRING())
+                    .process(validate_event(), output_type=named_row)
     
     invalid_ds = processed_ds.get_side_output(validate_event.invalid_side_output_tag)
 
