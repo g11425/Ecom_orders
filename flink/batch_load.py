@@ -4,18 +4,18 @@ from collections import defaultdict
 import config as cfg
 
 # ---------------- CONFIG ----------------
-REDSHIFT_HOST = "your-cluster.redshift.amazonaws.com"
+REDSHIFT_HOST = "aws-user.478106802666.eu-north-1.redshift-serverless.amazonaws.com"
 REDSHIFT_DB = "dev"
-REDSHIFT_USER = "awsuser"
-REDSHIFT_PASSWORD = "password"
+REDSHIFT_USER = "admin"
+REDSHIFT_PASSWORD = "CHNEDbrmxl657)("
 REDSHIFT_PORT = 5439
 
 S3_BUCKET = cfg.S3_BUCKET_NAME
-UNLOADED_PREFIX = cfg.S3_RAW_OUTPUT_PREFIX
+UNLOADED_PREFIX = cfg.S3_VALID_EVENTS_OUTPUT_PREFIX
 LOADED_PREFIX = cfg.S3_VALID_EVENTS_OUTPUT_FINAL_PREFIX
 
-IAM_ROLE = "arn:aws:iam::123456789012:role/RedshiftRole"
-TARGET_TABLE = "public.orders"
+IAM_ROLE = "arn:aws:iam::478106802666:role/service-role/AmazonRedshift-CommandsAccessRole-20260113T204825"
+TARGET_TABLE = "public.order_events"
 TRACK_TABLE = "public.s3_load_tracker"
 
 
@@ -102,7 +102,14 @@ for partition_prefix, files in partition_files.items():
         FROM '{s3_path}'
         IAM_ROLE '{IAM_ROLE}'
         FORMAT AS CSV
-        IGNOREHEADER 1;
+        IGNOREHEADER 0
+        TIMEFORMAT 'auto'
+        EMPTYASNULL
+        BLANKSASNULL
+        TRIMBLANKS
+        ACCEPTINVCHARS
+        COMPUPDATE OFF
+        STATUPDATE OFF;
         """
 
         try:

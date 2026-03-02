@@ -6,7 +6,7 @@ from pyflink.common.serialization import SimpleStringSchema
 from pyflink.datastream.window import TumblingProcessingTimeWindows
 from pyflink.datastream.connectors.kafka import KafkaSource
 from pyflink.datastream.connectors.file_system import FileSink, RollingPolicy, Encoder, OutputFileConfig, BucketAssigner
-from pyflink.datastream.functions import KeyedProcessFunction, MapFunction
+from pyflink.datastream.functions import KeyedProcessFunction
 from pyflink.datastream.state import ValueStateDescriptor, MapStateDescriptor, StateTtlConfig
 from pyflink.datastream import OutputTag
 from pyflink.common.time import Time
@@ -65,8 +65,8 @@ def clean_print(ds):
 
 class validate_event(KeyedProcessFunction):
 
-    invalid_side_output_tag = OutputTag("invalid_events", named_row)
-    dup_side_output_tag = OutputTag("duplicate_events", named_row)
+    invalid_side_output_tag = OutputTag("invalid_events", Types.STRING())
+    dup_side_output_tag = OutputTag("duplicate_events", Types.STRING())
 
 
     def open(self, runtime_context):
@@ -90,7 +90,7 @@ class validate_event(KeyedProcessFunction):
         if self.event_map_state is not None:
 
             if self.event_map_state.contains(event['event_id']):
-                yield self.dup_side_output_tag, self.parse_event(value)
+                yield self.dup_side_output_tag, self.parse_event_csv(value)
 
         self.event_map_state.put(event['event_id'], event['event_type'])
 
@@ -100,15 +100,15 @@ class validate_event(KeyedProcessFunction):
 
             if new_state.value < prev_state.value:
 #                event['valid'] = "invalid"
-                yield self.invalid_side_output_tag, self.parse_event(value)
+                yield self.invalid_side_output_tag, self.parse_event_csv(value)
             else:
 #                event['valid'] = "valid"
                 self.event_state.update(event['event_type'])                
-                yield self.parse_event(value)
+                yield self.parse_event_csv(value)
         else:
 #            event['valid'] = "valid"
             self.event_state.update(event['event_type'])                
-            yield self.parse_event(value)
+            yield self.parse_event_csv(value)
 
     def parse_event(self, value):
         data = json.loads(value)
@@ -124,6 +124,21 @@ class validate_event(KeyedProcessFunction):
             price=float(data["payload"]["price"]),
         )
 
+    def parse_event_csv(self, value):
+        data = json.loads(value)
+
+        dat = (
+            data["event_id"],
+            data["order_id"],
+            data["event_type"],
+            data["timestamp"],
+            data["payload"]["customer_id"],
+            data["payload"]["product_id"],
+            data["payload"]["quantity"],
+            data["payload"]["price"],
+        )
+
+        return ",".join(map(str, dat))
 
 
 
@@ -193,7 +208,7 @@ if __name__ == '__main__':
 
     
     processed_ds = ds.key_by(lambda x: json.loads(x)['order_id'])\
-                    .process(validate_event(), output_type=named_row)
+                    .process(validate_event(), output_type=Types.STRING())
     
     invalid_ds = processed_ds.get_side_output(validate_event.invalid_side_output_tag)
 
