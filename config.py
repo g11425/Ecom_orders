@@ -47,6 +47,26 @@ S3_OUTPUT_DIR_INVALID_EVENTS = f"s3://{S3_BUCKET_NAME}/{S3_INVALID_EVENTS_OUTPUT
 S3_OUTPUT_DIR_VALID_EVENTS_FINAL = f"s3://{S3_BUCKET_NAME}/{S3_VALID_EVENTS_OUTPUT_FINAL_PREFIX}"
 S3_OUTPUT_DIR_INVALID_EVENTS_FINAL = f"s3://{S3_BUCKET_NAME}/{S3_INVALID_EVENTS_OUTPUT_FINAL_PREFIX}"
 
+REDSHIFT_TBL_CREATE_SQL_PATH = {
+    "valid_events": os.path.join(PROJECT_ROOT, "sql/create/create_target_table.sql"),
+    "invalid_events": os.path.join(PROJECT_ROOT, "sql/create/create_invalid_target_table.sql"),
+    "orders": os.path.join(PROJECT_ROOT, "sql/create/create_order_table.sql"),
+    "staging": os.path.join(PROJECT_ROOT, "sql/create/create_staging_table.sql"),
+    "tracker": os.path.join(PROJECT_ROOT, "sql/create/create_tracking_table.sql")
+}
+
+REDSHIFT_TBL_LOAD_SQL_PATH = {
+    "orders": os.path.join(PROJECT_ROOT, "sql/load/update_order_table.sql")
+}  
+
+REDSHIFT_TABLES = {
+    "valid_events": "public.order_events",
+    "invalid_events": "public.invalid_order_events",
+    "orders": "public.orders",
+    "staging": "public.order_events_staging",
+    "tracker": "public.s3_load_tracker"
+}
+
 if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
 
