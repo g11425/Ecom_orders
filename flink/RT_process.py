@@ -1,14 +1,14 @@
 
 
 from pyflink.datastream import StreamExecutionEnvironment
-from pyflink.common import WatermarkStrategy, Row
+from pyflink.common import WatermarkStrategy, Row, Duration
 from pyflink.common.serialization import SimpleStringSchema
 from pyflink.datastream.window import TumblingProcessingTimeWindows
 from pyflink.datastream.connectors.kafka import KafkaSource
 from pyflink.datastream.connectors.file_system import FileSink, RollingPolicy, Encoder, OutputFileConfig, BucketAssigner
 from pyflink.datastream.functions import KeyedProcessFunction
 from pyflink.datastream.state import ValueStateDescriptor, MapStateDescriptor, StateTtlConfig
-from pyflink.datastream import OutputTag
+from pyflink.datastream import OutputTag, CheckpointingMode
 from pyflink.common.time import Time
 from pyflink.common.typeinfo import Types
 from pyflink.java_gateway import get_gateway
@@ -27,6 +27,7 @@ for p in sys.path:
     print("  ", p)
 
 import config as cfg
+
 
 
 
@@ -52,6 +53,7 @@ named_row = Types.ROW_NAMED(
         Types.FLOAT(),
     ],
 )
+
 
 
 def clean_print(ds):
@@ -151,6 +153,15 @@ if __name__ == '__main__':
     env.set_parallelism(1)
     env.enable_checkpointing(20000)
 
+    checkpoint_config = env.get_checkpoint_config()
+
+    checkpoint_config.set_checkpointing_mode(CheckpointingMode.EXACTLY_ONCE)
+    checkpoint_config.set_min_pause_between_checkpoints(120000)  
+
+
+    watermark_strategy = WatermarkStrategy.for_bounded_out_of_orderness(Duration.of_seconds(cfg.WATERMARK_DELAY))\
+                        .with_timestamp_assigner(lambda event, timestamp: json.loads(event)['timestamp'])
+
     kafka_source = KafkaSource.builder() \
         .set_bootstrap_servers('localhost:9092') \
         .set_topics('order_events') \
@@ -203,7 +214,7 @@ if __name__ == '__main__':
 
     dss = ds.map(lambda x: (json.loads(x)['event_type'], 1))\
         .key_by(lambda x: x[0])\
-        .window(TumblingProcessingTimeWindows.of(Time.seconds(2)))\
+        .window(TumblingProcessingTimeWindows.of(Time.seconds(cfg.WINDOW_SIZE)))\
         .reduce(lambda a, b: (a[0], a[1] + b[1]))
 
     
