@@ -25,3 +25,9 @@ $ bin/kafka-console-producer.sh --topic quickstart-events --bootstrap-server loc
 $ bin/kafka-console-consumer.sh --topic quickstart-events --from-beginning --bootstrap-server localhost:9092
 
 $ ~/kafka/bin/kafka-topics.sh --delete --topic order_events --bootstrap-server localhost:9092
+
+kafka-topics.sh \
+  --alter \
+  --topic order_events \
+  --partitions 6 \
+  --bootstrap-server localhost:9092

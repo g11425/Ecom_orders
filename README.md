@@ -15,6 +15,8 @@ The architecture is designed to support **exactly-once processing, fault toleran
 
 ---
 
+![Architecture](architecture.png)
+
 # Key Features
 
 ### Robust Event Processing
