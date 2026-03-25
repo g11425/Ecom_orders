@@ -17,6 +17,77 @@ The architecture is designed to support **exactly-once processing, fault toleran
 
 ![Architecture](architecture.png)
 
+
+---
+
+# Running the System
+
+### Start Kafka
+
+```
+bash/run_kafka_server.sh
+```
+
+### Start Flink Cluster
+
+```
+bash/start_flink_cluster.sh
+bash/run_flink_cluster.sh
+```
+
+### Start Event Simulator
+
+```
+python data/run_sim.py
+```
+
+### Run Batch Loader
+
+```
+python flink/batch_load.py
+```
+
+# Data Model
+
+SQL definitions are located in:
+
+```
+sql/create
+sql/load
+```
+
+Main tables:
+
+| Table                  | Purpose                                  |
+| ---------------------- | ---------------------------------------- |
+| `order_events`         | Valid processed events                   |
+| `invalid_order_events` | Invalid lifecycle events                 |
+| `order_events_staging` | Temporary Redshift load table            |
+| `orders`               | Latest order state per order             |
+| `s3_load_tracker`      | Partition-level load idempotency tracker |
+
+---
+
+---
+
+# Example Event
+
+```json
+{
+  "event_id": "a1c5c3f2-4a91-4d9a-bb5d-7c1b2a5d9c5e",
+  "order_id": "ORD12345",
+  "event_type": "ORDER_PAID",
+  "timestamp": "2025-11-22T10:15:32Z",
+  "payload": {
+    "customer_id": "C123",
+    "product_id": "P998",
+    "quantity": 2,
+    "price": 49.99
+  }
+}
+```
+
+
 # Key Features
 
 ### Robust Event Processing
@@ -55,30 +126,6 @@ All events are written to S3 before being loaded into Redshift:
 * Invalid lifecycle events
 
 This enables full **replayability and debugging**.
-
----
-
-# System Architecture
-
-```
-Event Simulator
-      │
-      ▼
-Kafka (order_events topic)
-      │
-      ▼
-PyFlink Streaming Job
-      │
-      ├── Raw Events → S3/raw
-      ├── Valid Events → S3/valid-events
-      └── Invalid Events → S3/invalid-events
-      │
-      ▼
-Batch Loader (S3 → Redshift)
-      │
-      ▼
-Redshift Analytics Tables
-```
 
 ---
 
@@ -150,26 +197,6 @@ This design ensures **idempotent loads** and avoids duplicate ingestion.
 
 ---
 
-# Data Model
-
-SQL definitions are located in:
-
-```
-sql/create
-sql/load
-```
-
-Main tables:
-
-| Table                  | Purpose                                  |
-| ---------------------- | ---------------------------------------- |
-| `order_events`         | Valid processed events                   |
-| `invalid_order_events` | Invalid lifecycle events                 |
-| `order_events_staging` | Temporary Redshift load table            |
-| `orders`               | Latest order state per order             |
-| `s3_load_tracker`      | Partition-level load idempotency tracker |
-
----
 
 # Order Lifecycle
 
@@ -198,59 +225,7 @@ Backward transitions are routed to the **invalid event stream**.
 
 ---
 
-# Project Structure
 
-```
-Ecom_orders/
-│
-├── data/
-│   ├── events.py
-│   └── run_sim.py
-│
-├── flink/
-│   ├── RT_process.py
-│   └── batch_load.py
-│
-├── sql/
-│   ├── create/
-│   └── load/
-│
-├── bash/
-│   ├── run_kafka_server.sh
-│   └── run_flink_cluster.sh
-│
-├── config.py
-│
-└── README.md
-```
-
----
-
-# Running the System Locally
-
-### Start Kafka
-
-```
-bash/run_kafka_server.sh
-```
-
-### Start Flink Cluster
-
-```
-bash/run_flink_cluster.sh
-```
-
-### Start Event Simulator
-
-```
-python data/run_sim.py
-```
-
-### Run Batch Loader
-
-```
-python flink/batch_load.py
-```
 
 ---
 
@@ -497,24 +472,6 @@ Traffic spikes are absorbed through:
 
 This ensures the system remains stable during **cold bursts or flash sales**.
 
----
-
-# Example Event
-
-```json
-{
-  "event_id": "a1c5c3f2-4a91-4d9a-bb5d-7c1b2a5d9c5e",
-  "order_id": "ORD12345",
-  "event_type": "ORDER_PAID",
-  "timestamp": "2025-11-22T10:15:32Z",
-  "payload": {
-    "customer_id": "C123",
-    "product_id": "P998",
-    "quantity": 2,
-    "price": 49.99
-  }
-}
-```
 
 ---
 
