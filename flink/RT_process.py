@@ -13,7 +13,7 @@ from pyflink.common.time import Time
 from pyflink.common.typeinfo import Types
 from pyflink.java_gateway import get_gateway
 
-
+import redis
 import sys
 import os
 import json
@@ -65,51 +65,78 @@ def clean_print(ds):
             print(f"{event_type}: {count}")
     sys.stdout.flush()
 
-class validate_event(KeyedProcessFunction):
+class ValidateEvent(KeyedProcessFunction):
 
     invalid_side_output_tag = OutputTag("invalid_events", Types.STRING())
     dup_side_output_tag = OutputTag("duplicate_events", Types.STRING())
 
-
     def open(self, runtime_context):
+        # -------- Flink State --------
         descriptor = ValueStateDescriptor("event_state", Types.STRING())
         map_descriptor = MapStateDescriptor("event_map_state", Types.STRING(), Types.STRING())
 
-        ttlConfig = StateTtlConfig.new_builder(Time.minutes(10))\
-            .set_update_type(StateTtlConfig.UpdateType.OnCreateAndWrite)\
-            .set_state_visibility(StateTtlConfig.StateVisibility.NeverReturnExpired)\
+        ttl_config = StateTtlConfig.new_builder(Time.minutes(10)) \
+            .set_update_type(StateTtlConfig.UpdateType.OnCreateAndWrite) \
+            .set_state_visibility(StateTtlConfig.StateVisibility.NeverReturnExpired) \
             .build()
+
+        descriptor.enable_time_to_live(ttl_config)
+        map_descriptor.enable_time_to_live(ttl_config)
 
         self.event_state = runtime_context.get_state(descriptor)
         self.event_map_state = runtime_context.get_map_state(map_descriptor)
-        self.event_map_state.enable_time_to_live(ttlConfig)
-        self.event_state.enable_time_to_live(ttlConfig)
+
+        # -------- Redis --------
+        self.redis = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+        self.ttl_seconds = 600
 
     def process_element(self, value, ctx):
-        prev_state_name = self.event_state.value()
         event = json.loads(value)
-        
-        if self.event_map_state is not None:
 
-            if self.event_map_state.contains(event['event_id']):
-                yield self.dup_side_output_tag, self.parse_event_csv(value)
+        event_id = event['event_id']
+        event_type = event['event_type']
+        key = ctx.get_current_key()
 
-        self.event_map_state.put(event['event_id'], event['event_type'])
+        # Redis keys
+        redis_state_key = f"event_state:{key}"
+        redis_map_key = f"event_map:{key}:{event_id}"
+
+        is_duplicate = False
+
+        if self.event_map_state.contains(event_id):
+            is_duplicate = True
+        else:
+            if self.redis.exists(redis_map_key):
+                is_duplicate = True
+                self.event_map_state.put(event_id, event_type)
+
+        if is_duplicate:
+            yield self.dup_side_output_tag, self.parse_event_csv(value)
+
+        self.event_map_state.put(event_id, event_type)
+        self.redis.set(redis_map_key, event_type, ex=self.ttl_seconds)
+
+        prev_state_name = self.event_state.value()
+
+        if prev_state_name is None:
+            prev_state_name = self.redis.get(redis_state_key)
+
+            if prev_state_name is not None:
+                self.event_state.update(prev_state_name)
 
         if prev_state_name is not None:
-            new_state = event_type_enum.get_enum(event['event_type'])
+            new_state = event_type_enum.get_enum(event_type)
             prev_state = event_type_enum.get_enum(prev_state_name)
 
             if new_state.value < prev_state.value:
-#                event['valid'] = "invalid"
                 yield self.invalid_side_output_tag, self.parse_event_csv(value)
             else:
-#                event['valid'] = "valid"
-                self.event_state.update(event['event_type'])                
+                self.event_state.update(event_type)
+                self.redis.set(redis_state_key, event_type, ex=self.ttl_seconds)
                 yield self.parse_event_csv(value)
         else:
-#            event['valid'] = "valid"
-            self.event_state.update(event['event_type'])                
+            self.event_state.update(event_type)
+            self.redis.set(redis_state_key, event_type, ex=self.ttl_seconds)
             yield self.parse_event_csv(value)
 
     def parse_event(self, value):
